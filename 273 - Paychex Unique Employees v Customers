@@ -4,7 +4,8 @@ select
   concat_ws('_', first_name, last_name, dob) as unique_person,
   min(DATE_FORMAT(created_at, '%Y-%m-%d %H:00:00')) as min_created,
   1 as unique_employee_created,
-  0 as unique_customer_created
+  0 as unique_customer_created,
+  0 as has_spending_limit
 from
   bme.employee_manifest em
 where em.employer_id = 227
@@ -18,7 +19,8 @@ select
   concat_ws('_', firstname, lastname, dob) as unique_person,
   min(DATE_FORMAT(created_at, '%Y-%m-%d %H:00:00')),
   0 as unique_employee_count,
-  1 as employee_created
+  1 as employee_created,
+  case when credit_limit > 0 then 1 else 0 end as has_spending_limit
 from
   bme.customer_entity c
 where c.employer_id = 227
@@ -31,7 +33,8 @@ select
   date_format(financials.cst(DATE_FORMAT(min_created, '%Y-%m-%d %H:00:00')),'%m-%d %H:%i') as hour_created,
   sum(unique_employee_created) as unique_employee_created,
   sum(unique_customer_created) as unique_customer_created,
-  sum(unique_customer_created)/sum(unique_employee_created) as pct_successful
+  sum(unique_customer_created)/sum(unique_employee_created) as pct_successful,
+  sum(has_spending_limit)/sum(unique_customer_created) as pct_cust_w_spending_limit
   from core
 where min_created > '2026-04-09'
 group by date_format(financials.cst(DATE_FORMAT(min_created, '%Y-%m-%d %H:00:00')),'%m-%d %H:%i')
