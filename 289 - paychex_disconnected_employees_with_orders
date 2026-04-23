@@ -1,0 +1,36 @@
+select
+  em.id as employee_manifest_id,
+  em.customer_id,
+  em.first_name,
+  em.last_name,
+  
+  concat_ws(' ', em.first_name, em.last_name) as employee_name,
+  c.email,
+  em.location as employer,
+  customer_orders.order_count,
+  customer_orders.sales_order_total,
+  ed.status as employer_paychex_status,
+  p.phone_number
+from
+  bme.employee_manifest em
+  inner join bme.customer_entity c on em.customer_id = c.entity_id
+  inner join bme.employer_department ed on em.company_code = ed.department_prefix
+  and em.employer_id = ed.employer_id
+  inner join (
+    select
+      customer_id,
+      count(1) as order_count,
+      sum(total_due) as sales_order_total
+    from
+      bme.sales_order so
+    group by
+      customer_id
+  ) customer_orders on em.customer_id = customer_orders.customer_id
+  left join  (
+    select parent_id as customer_id, max(a.telephone) as phone_number
+    from customer_address_entity a 
+    group by a.parent_id
+  ) p on p.customer_id = c.entity_id
+where
+  ed.status = 'disconnected'
+  and ed.customer_id is not null
