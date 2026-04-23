@@ -15,7 +15,9 @@ from
   bme.employee_manifest em
   inner join bme.customer_entity c on em.customer_id = c.entity_id
   inner join bme.employer_department ed on em.company_code = ed.department_prefix
-  and em.employer_id = ed.employer_id
+    and em.employer_id = ed.employer_id
+  
+  -- Sales Orders
   inner join (
     select
       customer_id,
@@ -26,11 +28,23 @@ from
     group by
       customer_id
   ) customer_orders on em.customer_id = customer_orders.customer_id
+  
+  -- phone data
   left join  (
     select parent_id as customer_id, max(a.telephone) as phone_number
     from customer_address_entity a 
     group by a.parent_id
   ) p on p.customer_id = c.entity_id
+
+  -- already emailed
+  left join (
+  select distinct recipient from comm.messages
+  where campaign = 'adhoc' and subcampaign = 'campaign-12'
+  )
+  already_emailed on c.email = already_emailed.recipient  
+
 where
   ed.status = 'disconnected'
   and ed.customer_id is not null
+  and already_emailed.recipient is null
+
