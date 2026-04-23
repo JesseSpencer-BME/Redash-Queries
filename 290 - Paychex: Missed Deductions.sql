@@ -1,4 +1,3 @@
-
 with data as (
   
   select 
@@ -106,12 +105,15 @@ with data as (
 
 select *,
   case 
-    when data.remitted_amount > 0 then ''
+    when deduction_amount = remitted_amount then 'Payment Success - No Issues'
+    when data.remitted_amount > 0 then 'Payment Partial Success - Remittance not Equal'
     when data.connection_status = 'disconnected' then 'company disconnected'
     when data.employment_status = 'Terminated' then 'employee terminated'
-    when data.is_blocked = 1 then 'blocked'
-    when data.matching_paystub = 0 then 'employee not paid'
+    when data.is_blocked = 1 then 'blocked'    
     when data.matching_paystub > 0 then 'deduction too late?'
+    when data.matching_paystub = 0 and last_paystub_date is null then 'no paystubs found for employee'
+    when data.matching_paystub = 0 and last_paystub_date < date(sysdate() - INTERVAL 33 day) then 'employee not paid - no paystub for over 1 month'
+    when data.matching_paystub = 0 then 'employee not paid this cycle'
     else 'unknown'
   end as reason
   
