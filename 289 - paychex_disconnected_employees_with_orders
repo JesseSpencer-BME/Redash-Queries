@@ -2,8 +2,7 @@ select
   em.id as employee_manifest_id,
   em.customer_id,
   em.first_name,
-  em.last_name,
-  
+  em.last_name,  
   concat_ws(' ', em.first_name, em.last_name) as employee_name,
   c.email,
   em.location as employer,
@@ -41,10 +40,14 @@ from
   select distinct recipient from comm.messages
   where campaign = 'adhoc' and subcampaign = 'campaign-12'
   )
-  already_emailed on c.email = already_emailed.recipient  
+  already_emailed on c.email = already_emailed.recipient
+
+  -- responded already per spreadsheet (Paychex Disconnect Employers Communication Records)
+  left join financials.campaign_email_exceptions cee on c.email = cee.exception_email
+    and cee.subcampaign = 'campaign-12'
 
 where
   ed.status = 'disconnected'
   and ed.customer_id is not null
-  and already_emailed.recipient is null
-
+  and cee.exception_email is null
+  -- and already_emailed.recipient is null -- Removed 26-04-27: want to email everyone who hasn't responded already
