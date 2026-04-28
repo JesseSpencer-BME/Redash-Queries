@@ -18,7 +18,7 @@ with data as (
     x.paystub_count, x.last_paystub_date, x.all_pay_dates,
     
     di.created_at as deduction_created_at,
-    json_value(p.raw_data, '$.submitByDate') pay_period_close_at,
+    p.completed_at as pay_period_close_at,
     di.amount as deduction_amount, ri.amount as remitted_amount, 
     
     case
@@ -36,8 +36,7 @@ with data as (
     json_value(p.raw_data, '$.intervalCode') as payperiod_interval_code,
     (select count(1) from employee_paystubs where employee_manifest_id = m.id and pay_date = p.check_date) as matching_paystub,
     
-    so.purchase_date,
-    -dlt.deduction_ledger_amount as deduction_ledger_amount
+    so.purchase_date
     
   from deduction d 
   inner join deduction_item di on di.deduction_id = d.entity_id 
@@ -48,11 +47,6 @@ with data as (
     and p.check_date > date_sub(d.pay_date, interval 2 day) and p.check_date < date_add(d.pay_date, interval 2 day)
     and substring(json_value(p.raw_data, '$.intervalCode'), 1, 1) = substring(m.pay_frequency, 1, 1)
   left join employer_department ed on ed.department_prefix = m.company_code and ed.employer_id = m.employer_id 
-  left join (
-  select deduction_item_id, sum(amount) as deduction_ledger_amount
-  from bme.deduction_ledger
-  group by deduction_item_id
-  ) dlt on di.entity_id = dlt.deduction_item_id
   left join (
     select ep.employee_manifest_id, count(1)  as paystub_count, max(pay_date) as last_paystub_date, group_concat(pay_date SEPARATOR ', ') as all_pay_dates
     from employee_paystubs ep 
