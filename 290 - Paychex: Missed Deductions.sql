@@ -26,6 +26,7 @@ with data as (
         when ri.amount > 0 then 'short'
         else 'missed'
     end as paid,
+  
     p.pay_period_id, p.status, p.num_checks as payperiod_check_count, 
     json_value(p.raw_data, '$.description') as payperiod_description,
     cast(json_value(p.raw_data, '$.startDate') as date) as payperiod_start_date,
@@ -34,19 +35,35 @@ with data as (
     
     lcp.last_employer_paystub_date,
     json_value(p.raw_data, '$.intervalCode') as payperiod_interval_code,
-    (select count(1) from employee_paystubs where employee_manifest_id = m.id and pay_date = p.check_date) as matching_paystub,
+    
+   (select count(1) from employee_paystubs where employee_manifest_id = m.id and pay_date = p.check_date) as matching_paystub,
     
     so.purchase_date
+    -dlt.deduction_ledger_amount as deduction_ledger_amount
     
   from deduction d 
   inner join deduction_item di on di.deduction_id = d.entity_id 
   inner join employee_manifest m on m.customer_id = di.customer_id 
   inner join remittance r on r.deduction_id = d.entity_id
-  left join remittance_item ri on ri.customer_id = di.customer_id and ri.remittance_id = r.entity_id 
+  left join remittance_item ri on ri.customer_id = di.customer_id and ri.remittance_id = r.entity_id   
+  left join employer_department ed on ed.department_prefix = m.company_code and ed.employer_id = m.employer_id
+
+  -- Deduction Ledgers
+  left join (
+    select deduction_item_id, sum(amount) as deduction_ledger_amount
+    from bme.deduction_ledger
+    group by deduction_item_id
+  ) dlt on di.entity_id = dlt.deduction_item_id
+
+  -- Pay period join
   left join employers.company_payperiods p on p.company_id = m.company_code
     and p.check_date > date_sub(d.pay_date, interval 2 day) and p.check_date < date_add(d.pay_date, interval 2 day)
     and substring(json_value(p.raw_data, '$.intervalCode'), 1, 1) = substring(m.pay_frequency, 1, 1)
-  left join employer_department ed on ed.department_prefix = m.company_code and ed.employer_id = m.employer_id 
+
+  -- paystub join
+  left join employee_paystubs ep on ep.employee_manifest_id = m.id and ep.pay_date = p.check_date
+  
+  -- paystub data
   left join (
     select ep.employee_manifest_id, count(1)  as paystub_count, max(pay_date) as last_paystub_date, group_concat(pay_date SEPARATOR ', ') as all_pay_dates
     from employee_paystubs ep 
@@ -54,18 +71,24 @@ with data as (
     where m1.employer_id=227 and ep.net > 0 and ep.pay_date is not null
     group by ep.employee_manifest_id 
   ) x on x.employee_manifest_id = m.id
+  
+  -- company check dates
   left join (
     select cp.company_id, max(cp.check_date) last_employer_paystub_date
     from employers.company_payperiods cp 
     where cp.num_checks > 0
     group by cp.company_id
   ) lcp on lcp.company_id = m.company_code 
+  
+  -- customer scoring data
   left join (
     select customer_id, min(created_at) as scored_at, max(json_value(data, '$.paycheckData.paystubSalary')) as paystub_salary
     from account.customer_score 
     where credit_limit > 0
     group by customer_id 
   ) cs on cs.customer_id = m.customer_id
+  
+  -- average transaction days
   left join (
    SELECT 
     a.customer_id,
@@ -81,6 +104,8 @@ with data as (
     GROUP BY a.customer_id
     ORDER BY a.customer_id
   ) tda on tda.customer_id = m.customer_id 
+  
+  -- transaction dates (schedules)
   left join (
     select a.customer_id, group_concat(distinct l.transaction_date SEPARATOR ', ') as transaction_dates
     from agreements a
@@ -89,8 +114,7 @@ with data as (
     group by a.customer_id
   ) tdd on tdd.customer_id = m.customer_id 
   
-  left join employee_paystubs ep on ep.employee_manifest_id = m.id and ep.pay_date = p.check_date
-  
+  -- First Purchase date
   left join ( 
     select min(created_at) purchase_date, customer_id
     from sales_order 
