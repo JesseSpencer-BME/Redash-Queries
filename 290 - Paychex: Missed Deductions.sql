@@ -1,46 +1,50 @@
 with data as (
   
   select 
-  -- effective date on deduction
-    d.pay_date, p.check_date, 
-    ep.net as check_net_amount,  
-    ifnull(json_value(ep.additional_data, '$.deductions[0].isBlocked'),0) is_blocked,
-    m.company_code as company_id, m.location as employer, 
-    m.first_name, m.last_name, cs.scored_at, cs.paystub_salary,
-      
-    ifnull(ed.status,'active') as connection_status, m.employee_id worker_id, 
-    m.employment_status, m.pay_frequency, tda.avg_days_between_transactions,
-    
-    tdd.transaction_dates,
-    
-    json_value(m.additional_data, '$.payStandards[0].payFrequency') as paychex_frequency,
-    TIMESTAMPDIFF(MONTH, m.start_date, now()) as tenure_months, salary, 
-    x.paystub_count, x.last_paystub_date, x.all_pay_dates,
-    
-    di.created_at as deduction_created_at,
-    p.completed_at as pay_period_close_at,
-    di.amount as deduction_amount, ri.amount as remitted_amount, 
-    
-    case
-        when ri.amount >= di.amount then 'paid'
-        when ri.amount > 0 then 'short'
-        else 'missed'
-    end as paid,
-  
-    p.pay_period_id, p.status, p.num_checks as payperiod_check_count, 
-    json_value(p.raw_data, '$.description') as payperiod_description,
-    cast(json_value(p.raw_data, '$.startDate') as date) as payperiod_start_date,
-    cast(json_value(p.raw_data, '$.endDate') as date) as payperiod_end_date,
-    cast(json_value(p.raw_data, '$.submitByDate') as date) as payperiod_submit_by_date,
-    
-    lcp.last_employer_paystub_date,
-    json_value(p.raw_data, '$.intervalCode') as payperiod_interval_code,
-    
-   (select count(1) from employee_paystubs where employee_manifest_id = m.id and pay_date = p.check_date) as matching_paystub,
-    
-    so.purchase_date
-    -dlt.deduction_ledger_amount as deduction_ledger_amount
-    
+-- effective date on deduction
+  d.pay_date,
+  p.check_date,
+  ep.net as check_net_amount,
+  ifnull(json_value(ep.additional_data, '$.deductions[0].isBlocked'),0) is_blocked,
+  m.company_code as company_id,
+  m.location as employer,
+  m.first_name,
+  m.last_name,
+  cs.scored_at,
+  cs.paystub_salary,
+  ifnull(ed.status, 'active') as connection_status,
+  m.employee_id worker_id,
+  m.employment_status,
+  m.pay_frequency,
+  tda.avg_days_between_transactions,
+  tdd.transaction_dates,
+  json_value(m.additional_data,'$.payStandards[0].payFrequency') as paychex_frequency,
+  TIMESTAMPDIFF(MONTH, m.start_date, now()) as tenure_months,
+  salary,
+  x.paystub_count,
+  x.last_paystub_date,
+  x.all_pay_dates,
+  di.created_at as deduction_created_at,
+  p.completed_at as pay_period_close_at,
+  di.amount as deduction_amount,
+  ri.amount as remitted_amount,
+  case
+    when ri.amount >= di.amount then 'paid'
+    when ri.amount > 0 then 'short'
+    else 'missed'
+  end as paid,
+  p.pay_period_id,
+  p.status,
+  p.num_checks as payperiod_check_count,
+  json_value(p.raw_data, '$.description') as payperiod_description,
+  cast(json_value(p.raw_data, '$.startDate') as date) as payperiod_start_date,
+  cast(json_value(p.raw_data, '$.endDate') as date) as payperiod_end_date,
+  cast(json_value(p.raw_data, '$.submitByDate') as date) as payperiod_submit_by_date,
+  lcp.last_employer_paystub_date,
+  json_value(p.raw_data, '$.intervalCode') as payperiod_interval_code,
+  (select count(1) from employee_paystubs where employee_manifest_id = m.id and pay_date = p.check_date) as matching_paystub,
+  so.purchase_date,
+  - dlt.deduction_ledger_amount as deduction_ledger_amount
   from deduction d 
   inner join deduction_item di on di.deduction_id = d.entity_id 
   inner join employee_manifest m on m.customer_id = di.customer_id 
